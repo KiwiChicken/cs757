@@ -3,7 +3,7 @@
 
 #include <grpc/grpc.h>
 #include <grpcpp/server_builder.h>
-
+#include <rocksdb/db.h>
 #include <iostream>
 
 class AddressBookService final : public expcmake::AddressBook::Service {
@@ -22,6 +22,18 @@ class AddressBookService final : public expcmake::AddressBook::Service {
 
 int main(int argc, char* argv[])
 {
+    // RocksDB initialization
+    rocksdb::DB* db;
+    rocksdb::Options options;
+    options.create_if_missing = true;
+    rocksdb::Status status = rocksdb::DB::Open(options, "/tmp/db", &db);
+    if (!status.ok()) {
+        std::cerr << "Unable to open RocksDB database: " << status.ToString() << std::endl;
+        return -1;
+    }
+    else{
+        std::cout<< "Successfully opened DB!\n";
+    }
     grpc::ServerBuilder builder;
     builder.AddListeningPort("0.0.0.0:50051", grpc::InsecureServerCredentials());
 
