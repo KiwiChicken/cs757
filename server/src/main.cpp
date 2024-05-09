@@ -1,47 +1,74 @@
-#include <myproto/address.pb.h>
-#include <myproto/addressbook.grpc.pb.h>
-
-#include <grpc/grpc.h>
-#include <grpcpp/server_builder.h>
-#include <rocksdb/db.h>
 #include <iostream>
+#include <memory>
+#include <string>
+#include <grpcpp/grpcpp.h>
+#include <myproto/kvstore.grpc.pb.h>
+#include <rocksdb/db.h>
 
-class AddressBookService final : public expcmake::AddressBook::Service {
-    public:
-        virtual ::grpc::Status GetAddress(::grpc::ServerContext* context, const ::expcmake::NameQuerry* request, ::expcmake::Address* response)
-        {
-            std::cout << "Server: GetAddress for \"" << request->name() << "\"." << std::endl;
+using grpc::Server;
+using grpc::ServerBuilder;
+using grpc::ServerContext;
+using grpc::Status;
+using kvstore::KeyValueStore;
+using kvstore::Key;
+using kvstore::Value;
+using kvstore::KeyValue;
+using kvstore::Empty;
 
-            response->set_name("Peter Peterson");
-            response->set_zip("12345");
-            response->set_country("Superland");
-            
-            return grpc::Status::OK;
+class KeyValueStoreImpl final : public KeyValueStore::Service {
+public:
+    explicit KeyValueStoreImpl(const std::string& db_path) {
+        rocksdb::Options options;
+        options.create_if_missing = true;
+        auto raw_ptr = db_.get();
+        rocksdb::Status status = rocksdb::DB::Open(options, db_path, &raw_ptr);
+        if (!status.ok()) {
+            std::cerr << "Error opening database: " << status.ToString() << std::endl;
+            exit(1);
         }
+    }
+
+    Status Put(ServerContext* context, const KeyValue* request, Empty* response) override {
+        rocksdb::Status status = db_->Put(rocksdb::WriteOptions(), request->key().key(), request->value().value());
+        if (!status.ok()) {
+            return Status(grpc::StatusCode::INTERNAL, "Error putting key-value pair into database");
+        }
+        return Status::OK;
+    }
+
+    Status Get(ServerContext* context, const Key* request, Value* response) override {
+        std::string value;
+        rocksdb::Status status = db_->Get(rocksdb::ReadOptions(), request->key(), &value);
+        if (status.IsNotFound()) {
+            return Status(grpc::StatusCode::NOT_FOUND, "Key not found");
+        } else if (!status.ok()) {
+            return Status(grpc::StatusCode::INTERNAL, "Error retrieving value from database");
+        }
+        response->set_value(value);
+        return Status::OK;
+    }
+
+private:
+    std::unique_ptr<rocksdb::DB> db_;
 };
 
-int main(int argc, char* argv[])
-{
-    // RocksDB initialization
-    rocksdb::DB* db;
-    rocksdb::Options options;
-    options.create_if_missing = true;
-    rocksdb::Status status = rocksdb::DB::Open(options, "/tmp/db", &db);
-    if (!status.ok()) {
-        std::cerr << "Unable to open RocksDB database: " << status.ToString() << std::endl;
-        return -1;
-    }
-    else{
-        std::cout<< "Successfully opened DB!\n";
-    }
-    grpc::ServerBuilder builder;
-    builder.AddListeningPort("0.0.0.0:50051", grpc::InsecureServerCredentials());
-
-    AddressBookService my_service;
-    builder.RegisterService(&my_service);
-
-    std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
+void RunServer(const std::string& db_path) {
+    std::string server_address("0.0.0.0:50051");
+    KeyValueStoreImpl service(db_path);
+    ServerBuilder builder;
+    builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+    builder.RegisterService(&service);
+    std::unique_ptr<Server> server(builder.BuildAndStart());
+    std::cout << "Server listening on " << server_address << std::endl;
     server->Wait();
-    
+}
+
+int main(int argc, char** argv) {
+    if (argc != 2) {
+        std::cerr << "Usage: " << argv[0] << " <path_to_database>" << std::endl;
+        return 1;
+    }
+
+    RunServer(argv[1]);
     return 0;
 }
