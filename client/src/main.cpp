@@ -55,9 +55,13 @@ private:
     std::unique_ptr<KeyValueStore::Stub> stub_;
 };
 
+
+void computeKeyRange(const std::string& db_path) {
+}
+
 int main(int argc, char** argv) {
     if (argc != 4) {
-        std::cerr << "Usage: " << argv[0] << " <server_address> <key> <value>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <server_list_txt_file_name> <key> <value>" << std::endl;
         return 1;
     }
 

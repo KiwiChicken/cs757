@@ -1,6 +1,7 @@
 syntax = "proto3";
 
 package kvstore;
+// import "google/protobuf/empty.proto";
 
 service KeyValueStore {
     rpc Put(KeyValue) returns (Empty) {}
