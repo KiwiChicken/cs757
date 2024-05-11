@@ -70,7 +70,7 @@ private:
         int start = std::stoi(key_min);
         int end = std::stoi(key_max);
         int step = (end - start) / n;
-        for (int i = 1; i < n; ++i) {
+        for (int i = 1; i < n+1; ++i) {
             keyRanges.push_back(start + i * step);
         }
 
@@ -79,7 +79,7 @@ private:
 
     int computeServerIndex(const std::string& key) const{
         int k = std::stoi(key);
-        for (int i = 0; i < keyRanges.size(); ++i) {
+        for (int i = 0; i < keyRanges.size()+1; ++i) {
             if (k < keyRanges[i]) {
                 return i;
             }
@@ -155,17 +155,5 @@ int main(int argc, char** argv) {
     KeyValueStoreClient client(servers, server_count, key_min, key_max);
 
     playTrace(client, tracefn);
-    // std::string key(argv[2]);
-    // std::string value(argv[3]);
-
-    // KeyValueStoreClient client(grpc::CreateChannel(
-    //     server_address, grpc::InsecureChannelCredentials()));
-
-    // client.Put(key, value);
-    // std::cout << "Put key-value pair: " << key << ": "<< value << std::endl;
-
-    // value = client.Get(key);
-    // std::cout << "Get value for key " << key << ": " << value << std::endl;
-
     return 0;
 }

@@ -7,7 +7,7 @@ find_package(Threads)
 # Sources
 #
 set(SOURCES
-    src/requestLBServer.cpp
+    src/simpleRRServer.cpp
 )
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SOURCES})
