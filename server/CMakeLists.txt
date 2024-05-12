@@ -2,21 +2,29 @@
 # Dependencies
 #
 find_package(Threads)
-
+find_package (glog 0.7.0 REQUIRED)
 #
 # Sources
 #
-set(SOURCES
+set(SOURCES_SIMPLE_RR_SERVER
     src/simpleRRServer.cpp
 )
 
-source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SOURCES})
+set(SOURCES_REQUEST_LB_SERVER
+    src/requestLBServer.cpp
+)
 
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SOURCES_SIMPLE_RR_SERVER} ${SOURCES_REQUEST_LB_SERVER})
 
 #
 # Target
 #
-add_executable(server ${SOURCES})
-target_include_directories(server PRIVATE ${PROJECT_SOURCE_DIR}/third_party/rocksdb/include/)
-target_link_directories(server PRIVATE ${PROJECT_SOURCE_DIR}/third_party/rocksdb)
-target_link_libraries(server PRIVATE myproto PRIVATE rocksdb)
+add_executable(SimpleRRServer ${SOURCES_SIMPLE_RR_SERVER})
+target_include_directories(SimpleRRServer PRIVATE ${PROJECT_SOURCE_DIR}/third_party/rocksdb/include/)
+target_link_directories(SimpleRRServer PRIVATE ${PROJECT_SOURCE_DIR}/third_party/rocksdb)
+target_link_libraries(SimpleRRServer PRIVATE myproto PRIVATE rocksdb)
+
+add_executable(RequestLBServer ${SOURCES_REQUEST_LB_SERVER})
+target_include_directories(RequestLBServer PRIVATE ${PROJECT_SOURCE_DIR}/third_party/rocksdb/include/)
+target_link_directories(RequestLBServer PRIVATE ${PROJECT_SOURCE_DIR}/third_party/rocksdb)
+target_link_libraries(RequestLBServer PRIVATE myproto PRIVATE rocksdb)

@@ -7,6 +7,8 @@
 #include <string>
 #include <grpcpp/grpcpp.h>
 #include <myproto/kvstore.grpc.pb.h>
+#include <chrono>
+// #include <thread>
 
 using grpc::Channel;
 using grpc::ClientContext;
@@ -36,6 +38,7 @@ public:
         int s_id = computeServerIndex(key);
         std::cout << s_id << std::endl;
         Status status = stubs_[s_id]->Put(&context, kv, &response);
+        // std::this_thread::sleep_for(std::chrono::milliseconds(800));
         if (status.ok()) {
             return true;
         } else {
@@ -49,6 +52,12 @@ public:
         k.set_key(key);
         Value v;
         ClientContext context;
+        // Get the current time
+        auto now = std::chrono::system_clock::now();
+        auto duration = now.time_since_epoch();
+        auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+        context.AddMetadata("timestamp", std::to_string(milliseconds));
+
         int s_id = computeServerIndex(key);
         std::cout << s_id << std::endl;
         Status status = stubs_[s_id]->Get(&context, k, &v);

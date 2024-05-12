@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package kvstore;
 // import "google/protobuf/empty.proto";
-import "kvstore.proto";
+import "myproto/kvstore.proto";
 
 // if monitor deems necessary, specify the blocks a server instance should bring into cache
 message CacheUpdate {
@@ -14,18 +14,23 @@ message CacheUpdate {
 message request {
   bool is_put = 1;
   string key = 2;
-  uint32_t val_size = 3;
+  uint32 val_size = 3;
 }
 
 message CacheState {
-  string server_id = 1;
-  uint8_t epoch = 2;// TODO: determine epoch len
-  uint32_t cache_data_hit = 3;
-  uint32_t cache_data_miss = 4;
-  uint32_t cache_data_bytes_insert = 5;
+  uint32 server_id = 1;
+  uint32 epoch = 2;// TODO: determine epoch len
+  uint32 cache_data_hit = 3;
+  uint32 cache_data_miss = 4;
+  uint32 cache_data_bytes_insert = 5;
   repeated string requests = 6; // for now all requests in last epoch
 }
 
+message ServerLoad {
+  uint32 server_id = 1;
+  uint32 req_cnt = 2; // requests in last epoch
+}
+
 service CacheMonitor {
-  rpc ShareCacheState(CacheState) returns (google.protobuf.Empty) {}
+  rpc ShareCacheState(CacheState) returns (kvstore.Empty) {}
 }

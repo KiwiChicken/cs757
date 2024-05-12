@@ -43,7 +43,7 @@ public:
     }
 
     Status Put(ServerContext* context, const KeyValue* request, Empty* response) override {
-        if (first_put) {
+        if (first_put) [[unlikely]] {
             connectToServers();
             first_put = false;
         }
