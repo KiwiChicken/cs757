@@ -7,6 +7,7 @@ service KeyValueStore {
     rpc Put(KeyValue) returns (Empty) {}
     rpc Get(Key) returns (Value) {}
     rpc UpdateEpochInfo(ServerLoad) returns (Empty) {}
+    rpc ShareCacheState(CacheState) returns (Empty) {}
 }
 
 message Key {
@@ -31,26 +32,18 @@ message CacheUpdate {
 
 // server shares cache info to monitor, can then be forwarded to a primary server to aid decision making
 // used to simulate and replicate cache state
-message request {
-  bool is_put = 1;
-  string key = 2;
-  uint32 val_size = 3;
-}
-
-message CacheState {
-  uint32 server_id = 1;
-  uint32 epoch = 2;// TODO: determine epoch len
-  uint32 cache_data_hit = 3;
-  uint32 cache_data_miss = 4;
-  uint32 cache_data_bytes_insert = 5;
-  repeated string requests = 6; // for now all requests in last epoch
-}
 
 message ServerLoad {
   uint32 server_id = 1;
   uint32 req_cnt = 2; // requests in last epoch
 }
 
-service CacheMonitor {
-  rpc ShareCacheState(CacheState) returns (Empty) {}
+
+message CacheState {
+  uint32 server_id = 1;
+  uint32 req_cnt = 2; // requests in last epoch
+  uint64 cache_data_hit = 3;
+  uint64 cache_data_miss = 4;
+  uint64 cache_data_bytes_insert = 5;   // cache overwrite traffic
+  repeated string hot_keys = 7;
 }

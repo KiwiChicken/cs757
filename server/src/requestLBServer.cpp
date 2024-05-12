@@ -22,7 +22,6 @@ using kvstore::Value;
 using kvstore::KeyValue;
 using kvstore::Empty;
 using kvstore::ServerLoad;
-using kvstore::request;
 
 const int replicaNum = 2;
 
@@ -32,8 +31,8 @@ public:
     // uint32_t req_cnt_epoch = 0;
     std::vector<uint32_t> replica_load; // TODO: seems these should be atomic, but will have compile error
     long epoch_start_ms = 0;
-    explicit KeyValueStoreImpl(const std::string& db_path, const std::vector<std::string>& srvrs, int srvr_cnt, 
-    const std::string& key_min, const std::string& key_max, int id) : replica_load(replicaNum, 0) {
+    explicit KeyValueStoreImpl(const std::string& db_path, const std::vector<std::string>& rep_srvrs, const std::vector<std::string>& prm_srvrs,
+    int srvr_cnt, const std::string& key_min, const std::string& key_max, int id) : replica_load(replicaNum, 0) {
         rocksdb::Options options;
         options.create_if_missing = true;
         rocksdb::DB* raw_db;
@@ -44,7 +43,8 @@ public:
         }
         db_.reset(raw_db);
         std::cout << "db open successful\n";
-        servers = srvrs;
+        replica_servers = rep_srvrs;
+        primary_servers = prm_srvrs;
         server_id = id;
         server_count = srvr_cnt;
         computePrimaryKeyRange(key_min, key_max, server_count);
@@ -112,7 +112,9 @@ public:
 private:
     std::unique_ptr<rocksdb::DB> db_;
     std::vector<std::shared_ptr<KeyValueStore::Stub>> stubs_;
-    std::vector<std::string> servers;
+    std::vector<std::shared_ptr<KeyValueStore::Stub>> cacheLBstubs_;
+    std::vector<std::string> replica_servers;
+    std::vector<std::string> primary_servers;
     int key_start, key_end;
     uint32_t server_id;
     int server_count;
@@ -121,13 +123,19 @@ private:
 
     void connectToServers() {
         
-        auto it = servers.begin();
-        if (it != servers.end()) {
+        auto it = replica_servers.begin();
+        if (it != replica_servers.end()) {
             ++it;  // Skip self
         }
-        for (; it != servers.end(); ++it) {
+        for (; it != replica_servers.end(); ++it) {
             std::cout << "setup connection to " << *it << std::endl;
             stubs_.push_back(KeyValueStore::NewStub(grpc::CreateChannel(*it, grpc::InsecureChannelCredentials())));
+        }
+
+        it = primary_servers.begin();
+        for (; it != primary_servers.end(); ++it) {
+            std::cout << "setup connection to " << *it << std::endl;
+            cacheLBstubs_.push_back(KeyValueStore::NewStub(grpc::CreateChannel(*it, grpc::InsecureChannelCredentials())));
         }
     }
 
@@ -200,7 +208,7 @@ private:
 
     void SendEpochInfo() {
         while (true) {
-            for (const auto& stub : stubs_) {
+            for (const auto& stub : cacheLBstubs_) {
                 ServerLoad request;
                 request.set_server_id(server_id);
                 request.set_req_cnt(replica_load[0]);
@@ -225,7 +233,7 @@ private:
 };
 
 int server_count = 0;
-std::vector<std::string> readServerInfo(const std::string& fn, int n) {
+std::vector<std::string> readReplicaServerInfo(const std::string& fn, int n) {
     std::cout << "reading server info..." << std::endl;
     std::ifstream file(fn);
     std::vector<std::string> lines(replicaNum);
@@ -255,14 +263,37 @@ std::vector<std::string> readServerInfo(const std::string& fn, int n) {
     return lines;
 }
 
-
+std::vector<std::string> readPrimaryServerInfo(const std::string& fn, int n) {
+    std::cout << "reading primary server info..." << std::endl;
+    int first_prime_id = (n - replicaNum) % server_count;
+    std::ifstream file(fn);
+    std::vector<std::string> lines(replicaNum - 1);
+    std::string line;
+    int i = 0, j = 0;
+    for (int i = 0; i < server_count; ++i) {
+        if (!std::getline(file, line)) {
+            file.clear();
+            file.seekg(0, std::ios::beg);
+            std::getline(file, line);
+        }
+        if ( (i > first_prime_id && (i < n || first_prime_id > n) ) || i > n - replicaNum) {
+            if (!line.empty() && line.back() == '\n') {
+                line.pop_back();
+            }
+            std::cout << i << std::endl;
+            std::cout << line << std::endl;
+            lines[j] = line;
+            j++;
+        }
+    }
+    return lines;
+}
 
 void RunServer(const std::string& db_path, const std::string& fn, int server_id, const std::string& key_min, const std::string& key_max) {
-    std::vector<std::string> servers = readServerInfo(fn, server_id);
-    for (auto s : servers)
-        std::cout << s << std::endl;
-    std::string server_address(servers[0]);
-    KeyValueStoreImpl service(db_path, servers, server_count, key_min, key_max, server_id);
+    std::vector<std::string> replica_servers = readReplicaServerInfo(fn, server_id);
+    std::vector<std::string> primary_servers = readPrimaryServerInfo(fn, server_id);
+    std::string server_address(replica_servers[0]);
+    KeyValueStoreImpl service(db_path, replica_servers, primary_servers, server_count, key_min, key_max, server_id);
     ServerBuilder builder;
     builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
     builder.RegisterService(&service);
@@ -272,7 +303,6 @@ void RunServer(const std::string& db_path, const std::string& fn, int server_id,
     std::cout << "Server listening on " << server_address << std::endl;
     server->Wait();
 }
-
 
 int main(int argc, char** argv) {
     if (argc != 6) {
